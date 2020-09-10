@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Speed Test</title>
+    <link rel="shortcut icon" href="favicon.ico">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.3/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/solid.css" integrity="sha384-+0VIRx+yz1WBcCTXBkVQYIBVNEFH1eP6Zknm16roZCyeNg2maWEpk/l/KsyFKs7G" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/brands.css" integrity="sha384-1KLgFVb/gHrlDGLFPgMbeedi6tQBLcWvyNUN+YKXbD7ZFbjX6BLpMDf0PJ32XJfX" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/fontawesome.css" integrity="sha384-jLuaxTTBR42U2qJ/pm4JRouHkEDHkVqH0T1nyQXn1mZ7Snycpf6Rl25VBNthU4z0" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.13.1/styles/github.min.css">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" type="text/css" href="css/style.css">
+    <script src="speedtest.js"></script>
+    <script type="text/javascript">
+function I(i){return document.getElementById(i);}
+//INITIALIZE SPEEDTEST
+var s=new Speedtest(); //create speedtest object
+s.setParameter("telemetry_level","basic"); //enable telemetry
+
+var meterBk=/Trident.*rv:(\d+\.\d+)/i.test(navigator.userAgent)?"#232f4e":"#80808040";
+var dlColor="#26c5dd",
+	ulColor="#fc1cff";
+var progColor=meterBk;
+
+//CODE FOR GAUGES
+function drawMeter(c,amount,bk,fg,progress,prog){
+	var ctx=c.getContext("2d");
+	var dp=window.devicePixelRatio||1;
+	var cw=c.clientWidth*dp, ch=c.clientHeight*dp;
+	var sizScale=ch*0.0055;
+	if(c.width==cw&&c.height==ch){
+		ctx.clearRect(0,0,cw,ch);
+	}else{
+		c.width=cw;
+		c.height=ch;
+	}
+	ctx.beginPath();
+	ctx.strokeStyle=bk;
+	ctx.lineWidth=12*sizScale;
+	ctx.arc(c.width/2,c.height-58*sizScale,c.height/1.8-ctx.lineWidth,-Math.PI*1.1,Math.PI*0.1);
+	ctx.stroke();
+	ctx.beginPath();
+	ctx.strokeStyle=fg;
+	ctx.lineWidth=12*sizScale;
+	ctx.arc(c.width/2,c.height-58*sizScale,c.height/1.8-ctx.lineWidth,-Math.PI*1.1,amount*Math.PI*1.2-Math.PI*1.1);
+	ctx.stroke();
+	//ctx.boxShadow="0 0 2em #26c5dd, inset 0 0 1em rgba(0,0,0,0.1)";
+	if(typeof progress !== "undefined"){
+		ctx.fillStyle=prog;
+		ctx.fillRect(c.width*0.3,c.height-16*sizScale,c.width*0.4*progress,4*sizScale);
+	}
+}
+function mbpsToAmount(s){
+	return 1-(1/(Math.pow(1.3,Math.sqrt(s))));
+}
+function format(d){
+    d=Number(d);
+    if(d<10) return d.toFixed(2);
+    if(d<100) return d.toFixed(1);
+    return d.toFixed(0);
+}
+
+//UI CODE
+var uiData=null;
+function startStop(){
+    if(s.getState()==3){
+		//speedtest is running, abort
+		s.abort();
+		data=null;
+		I("startStopBtn").className="";
+		I("result").className="showUp";
+		I("dwUpSpeedometer").style.display="none";
+		initUI();
+	}else{
+		//test is not running, begin
+		I("result").className="showUp";
+		I("ipArea").style.display="none";
+		I("ipIni").style.display="none";
+		I("rsltDwn").style.display="inline-block";
+		I("rsltUpl").style.display="none";
+		I("dwUpSpeedometer").style.display="block";
+		I("startStopBtn").className="running";
+		//I("result").className="";
+		I("shareArea").style.display="none";
+		s.onupdate=function(data){
+            uiData=data;
+		};
+		s.onend=function(aborted){
+			I("dwUpSpeedometer").style.display="none";
+            I("startStopBtn").className="";
+			I("result").className="showUp";
+			I("share").style.display="block";
+            updateUI(true);
+            if(!aborted){
+                //if testId is present, show sharing panel, otherwise do nothing
+                //try{
+                    var testId=uiData.testId;
+					console.log("testId="+testId);
+                    if(testId!=null){
+						console.log("testid exist");
+                        var shareURL=window.location.href.substring(0,window.location.href.lastIndexOf("/"))+"/results/?id="+testId;
+                        I("resultsImg").src=shareURL;
+                        I("resultsURL").value=shareURL;
+                        I("testId").innerHTML=testId;
+                        I("shareArea").style.display="block";
+                    }else{console.log("testid not exist");}
+                }//catch(e){}
+            //}
+		};
+		s.start();
+	}
+}
+//this function reads the data sent back by the test and updates the UI
+function updateUI(forced){
+	if(!forced&&s.getState()!=3) return;
+	if(uiData==null) return;
+	var status=uiData.testState;
+	I("ip").textContent="IP Address : "+uiData.clientIp;
+	I("ipRslt").textContent=uiData.clientIp;
+	I("dwnSpMtr").className="";
+	I("dlText").textContent=(status==1&&uiData.dlStatus==0)?"...":format(uiData.dlStatus);
+	//I("dlTextRslt").textContent=(status==1&&uiData.dlStatus==0)?"...":format(uiData.dlStatus);
+	I("dlTextRslt").textContent=I("dlText").textContent;
+	drawMeter(I("dlMeter"),mbpsToAmount(Number(uiData.dlStatus*(status==1?oscillate():1))),meterBk,dlColor,Number(uiData.dlProgress),progColor);
+	console.log("drawMeter="+(Number(uiData.dlStatus*(status==1?oscillate():1))));
+	I("ulText").textContent=(status==3&&uiData.ulStatus==0)?"...":format(uiData.ulStatus);
+	I("ulTextRslt").textContent=I("ulText").textContent;
+	drawMeter(I("ulMeter"),mbpsToAmount(Number(uiData.ulStatus*(status==3?oscillate():1))),meterBk,ulColor,Number(uiData.ulProgress),progColor);
+	I("pingText").textContent=format(uiData.pingStatus);
+	I("pingTextRslt").textContent=format(uiData.pingStatus);
+	//I("jitText").textContent=format(uiData.jitterStatus);
+	
+	if(uiData.dlProgress==0&&uiData.ulProgress==0){
+		I("dwnSpMtr").className="";
+		I("uplSpMtr").className="hide";
+		I("ipArea").style.display="none";
+		I("ipIni").style.display="none";
+	}else if(uiData.dlProgress!=0&&uiData.ulProgress<=0){
+		I("dwnSpMtr").className="show";
+		I("uplSpMtr").className="hide";
+	}else if(uiData.dlProgress==1&&uiData.ulProgress!=0){
+		I("dwnSpMtr").className="hide";
+		I("uplSpMtr").className="show";
+	}
+	if(uiData.dlProgress==1&&uiData.ulProgress<=0){
+		I("result").className="showUp";
+		I("ipArea").style.display="none";
+		I("ipIni").style.display="none";
+		I("rsltDwn").style.display="inline-block";
+		I("rsltUpl").style.display="none";		
+	}else if(uiData.dlProgress==1&&uiData.ulProgress==1){
+		I("result").className="showUp";
+		I("ipIni").style.display="none";
+		I("ipArea").style.display="none";
+		I("rsltDwn").style.display="inline-block";
+		I("rsltUpl").style.display="inline-block";
+	}else if(uiData.dlProgress==0&&uiData.ulProgress==0){
+		I("ipIni").style.display="";
+		I("result").className="";
+		I("ipArea").style.display="";
+		I("rsltDwn").style.display="none";
+		I("rsltUpl").style.display="none";
+		I("share").style.display="none";
+	}
+	if(uiData.dlProgress>0){ 
+      			var spdvalue = (I("dlText").textContent);
+				console.log("spdvalue="+spdvalue);
+				var initDegree=-90;
+				var lastDegree=90;
+				var rotateDeg;
+				if(spdvalue<=180){
+					rotateDeg=initDegree+Math.round(spdvalue*20);
+					//rotateDeg=initDegree+(spdvalue/2);
+					//console.log("Math.round(spdvalue*30)="+Math.round(spdvalue*40));
+					//console.log("rotateDeg1="+rotateDeg);
+					}
+				//else if(spdvalue > 180 && spdvalue < 360 ){
+					
+					//rotateDeg=Math.round(spdvalue/2)-lastDegree;
+					//rotateDeg=(spdvalue*20)-lastDegree;
+					//console.log("rotateDeg2="+rotateDeg);
+					//}
+					
+					/*else{
+						alert("Wrong Value")
+						console.log("rotateDeg2="+rotateDeg);
+						}*/
+					I("needleDw").style.webkitTransform = "rotate(-90deg)";						
+					I("needleDw").style.transition="transform 2s";
+                  	I("needleDw").style.transform = "rotate(" + rotateDeg + "deg)";
+}
+
+if(uiData.ulProgress>0){
+	
+	var spdvalueUp = (I("ulText").textContent); 
+      			console.log("spdvalue2="+spdvalueUp);
+				var initDegree=-90;
+				var lastDegree=90;
+				var rotateDeg;
+				if(spdvalueUp<=180){
+					rotateDeg=initDegree+Math.round(spdvalueUp*20);
+					//rotateDeg=initDegree+(spdvalue/2);
+					console.log("rotateDeg3="+rotateDeg);
+					}
+				else if(spdvalueUp > 180 && spdvalueUp < 360 ){
+					
+					//rotateDeg=Math.round(spdvalue/2)-lastDegree;
+					rotateDeg=(spdvalueUp*20)-lastDegree;
+					console.log("rotateDeg4="+rotateDeg);
+					}
+					
+					/*else{
+						alert("Wrong Value")
+						console.log("rotateDeg2="+rotateDeg);
+						}*/
+					I("needleUp").style.webkitTransform = "rotate(-90deg)";
+					I("needleUp").style.transition="transform 2s";
+                  	I("needleUp").style.transform = "rotate(" + rotateDeg + "deg)";
+}
+}
+	//I("dwnSpMtr").className="";
+	//I("uplSpMtr").className="hide";
+	//I("uplSpMtr").className="";
+	//I("dwnSpMtr").className="hide";
+function oscillate(){
+	return 1+0.02*Math.sin(Date.now()/100);
+}
+//update the UI every frame
+window.requestAnimationFrame=window.requestAnimationFrame||window.webkitRequestAnimationFrame||window.mozRequestAnimationFrame||window.msRequestAnimationFrame||(function(callback,element){setTimeout(callback,1000/60);});
+function frame(){
+	requestAnimationFrame(frame);
+	updateUI();
+}
+frame(); //start frame loop
+//function to (re)initialize UI
+function initUI(){
+	drawMeter(I("dlMeter"),0,meterBk,dlColor,0);
+	drawMeter(I("ulMeter"),0,meterBk,ulColor,0);
+	I("dlText").textContent="";
+	I("ulText").textContent="";
+	I("pingText").textContent="";
+	//I("jitText").textContent="";
+	I("ip").textContent="";
+	I("ipRslt").textContent="";
+	I("dlTextRslt").textContent="";
+	I("ulTextRslt").textContent="";
+}
+</script>
+</head>
+
+<body>
+    <div id="testWrapper">
+    	<h1>Speed Test</h1>
+        <div id="startStopBtn" onclick="startStop()"></div><br/>
+        <!--<a class="privacy" href="#" onclick="I('privacyPolicy').style.display=''">Privacy</a>-->
+        <div id="test">
+            <div id="dwUpSpeedometer" style="display:none">
+            	<div id="ipArea">
+                    <span id="ip"></span>
+                </div>
+                <div id="ipIni" class="testGroup">
+                    <div class="testArea2">
+                        <div class="testName">Ping</div>
+                        <div id="pingText" class="meterText" style="color:#AA6060"></div>
+                        <div class="unit">ms</div>
+                    </div>
+                </div>
+                <div class="testGroup">
+                    <div id="dwnSpMtr">
+                    	<div class="testArea">
+                            <div class="testName">Download</div>
+                            <canvas id="dlMeter" class="meter"></canvas>
+                            <div id="dlText" class="meterText"></div>
+                            <div class="unit">Mbps</div>
+                            <div id="needleDw" class="js-needle needle"></div>
+                        </div>
+                    </div>
+                    <div id="uplSpMtr">
+                        <div class="testArea">
+                            <div class="testName">Upload</div>
+                            <canvas id="ulMeter" class="meter"></canvas>
+                            <div id="ulText" class="meterText"></div>
+                            <div class="unit">Mbps</div>
+							<div id="needleUp" class="js-needle needle"></div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+            <div id="shareArea" style="display:none">
+                <h3>Share results</h3>
+                <p>Test ID: <span id="testId"></span></p>
+                <input type="text" value="" id="resultsURL" readonly onclick="this.select();this.focus();this.select();document.execCommand('copy');alert('Link copied')"/>
+                <img src="" id="resultsImg" />
+            </div>
+            
+            <div id="share" class="container my-5" style="display:none">            
+                <div class="my-5">
+                  <div class="mb-3">
+                    <div id="shareBlock"></div>
+                  </div>
+            	</div>
+            </div>
+            
+            <div id="result" style="display:none">
+                <div class="testGroup">
+                    <div id="rsltPing" class="testArea">
+                        <div class="testName"><span class="pingicon"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 477.859 477.859" style="enable-background:new 0 0 477.859 477.859;" xml:space="preserve" width="16" height="16"><g><g>
+	<g>
+		<path d="M472.863,175.662L353.396,56.195c-6.666-6.664-17.472-6.662-24.136,0.004c-3.199,3.2-4.996,7.538-4.997,12.063v51.2    H204.796c-9.426,0-17.067,7.641-17.067,17.067c0,9.426,7.641,17.067,17.067,17.067H341.33c9.426,0,17.067-7.641,17.067-17.067    V109.46l78.268,78.268l-78.268,78.268v-27.068c0-9.426-7.641-17.067-17.067-17.067H153.596v-51.2    c-0.002-9.426-7.645-17.065-17.07-17.063c-4.524,0.001-8.863,1.798-12.063,4.997L4.997,278.062    c-6.663,6.665-6.663,17.468,0,24.132l119.467,119.467c3.2,3.201,7.54,5,12.066,5.001c2.243,0.007,4.466-0.434,6.536-1.297    c6.376-2.644,10.532-8.867,10.53-15.77v-51.2h119.467c9.426,0,17.067-7.641,17.067-17.067s-7.641-17.067-17.067-17.067H136.53    c-9.426,0-17.067,7.641-17.067,17.067v27.068l-78.268-78.268l78.268-78.268v27.068c0,9.426,7.641,17.067,17.067,17.067h187.733    v51.2c0.002,9.426,7.645,17.065,17.07,17.063c4.524-0.001,8.863-1.798,12.063-4.997l119.467-119.467    C479.525,193.129,479.525,182.326,472.863,175.662z" data-original="#000000" class="active-path" style="fill:#AA6060" data-old_color="#000000"/>
+	</g>
+</g></g> </svg></span>Ping <span class="unit">ms</span></div>
+                        <div id="pingTextRslt" class="meterText" style="color:#AA6060"></div>
+                    </div>
+                    <div id="rsltDwn" class="testArea">
+                        <div class="testName"><span class="dwnicon"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 21.825 21.825" style="enable-background:new 0 0 21.825 21.825;" xml:space="preserve" width="16" height="16"><g><path style="fill:#26C5DD" d="M16.791,13.254c0.444-0.444,1.143-0.444,1.587,0c0.429,0.444,0.429,1.143,0,1.587l-6.65,6.651  c-0.206,0.206-0.492,0.333-0.809,0.333c-0.317,0-0.603-0.127-0.81-0.333l-6.65-6.651c-0.444-0.444-0.444-1.143,0-1.587  s1.143-0.444,1.587,0l4.746,4.762V1.111C9.791,0.492,10.299,0,10.918,0c0.619,0,1.111,0.492,1.111,1.111v16.904L16.791,13.254z" data-original="#1E201D" class="active-path" data-old_color="#1E201D"/></g> </svg></span>Download <span class="unit">Mbps</span></div>
+                        <div id="dlTextRslt" class="meterText"></div>
+                    </div>
+                    <div id="rsltUpl" class="testArea">
+                        <div class="testName"><span class="upicon"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 31.479 31.479" style="enable-background:new 0 0 31.479 31.479;" xml:space="preserve" width="16" height="16"><g><path style="fill:#FC1CFF" d="M26.477,10.274c0.444,0.444,0.444,1.143,0,1.587c-0.429,0.429-1.143,0.429-1.571,0l-8.047-8.047  v26.555c0,0.619-0.492,1.111-1.111,1.111c-0.619,0-1.127-0.492-1.127-1.111V3.813l-8.031,8.047c-0.444,0.429-1.159,0.429-1.587,0  c-0.444-0.444-0.444-1.143,0-1.587l9.952-9.952c0.429-0.429,1.143-0.429,1.571,0L26.477,10.274z" data-original="#1E201D" class="active-path" data-old_color="#1E201D"/></g> </svg></span>Upload <span class="unit">Mbps</span></div>
+                        <div id="ulTextRslt" class="meterText"></div>
+                    </div>
+                    <div id="ipRslt"></div>
+                </div>
+            </div>
+        
+	</div>
+   
+   
+   
+   
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.slim.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.13.1/highlight.min.js"></script>
+  <script src="js/jquery.c-share.js"></script>
+  <script>
+    hljs.initHighlightingOnLoad();
+
+    $('#shareBlock').cShare({
+      description: 'jQuery plugin - C Share buttons...',
+      showButtons: [
+        'fb',
+        'gPlus',
+        'email'
+      ]
+    });
+  </script>
+  
+</body>
+</html>
